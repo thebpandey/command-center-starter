@@ -1,0 +1,10 @@
+import type { Database } from "./database.types";
+type T = Database["public"]["Tables"];
+export type Task = T["tasks"]["Row"];
+export type Reminder = T["reminders"]["Row"];
+export type DocumentRow = T["documents"]["Row"];
+export type Message = T["messages"]["Row"];
+export type Activity = T["activity"]["Row"];
+export type CalendarEvent = T["calendar_events"]["Row"];
+export type TriageRules = T["triage_rules"]["Row"];
+export type ApiToken = T["api_tokens"]["Row"];
