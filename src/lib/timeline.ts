@@ -33,8 +33,11 @@ export function buildTimeline(input: { events: CalendarEvent[]; tasks: Task[]; r
     const meta = [span, hostOf(e.meet_url) ?? e.location ?? "Calendar"].join(" · ");
     items.push({ key: `e-${e.id}`, kind: "event", day: localDate(new Date(e.starts_at)), sortAt: Date.parse(e.starts_at), time: fmtTime24(e.starts_at), title: e.title || "(no title)", meta, taskState: linked ? (linked.done ? "done" : "open") : undefined, href: linked ? "/tasks" : undefined });
   }
+  const eventIds = new Set(input.events.map((e) => e.id));
   for (const t of input.tasks) {
     if (!t.due_date || t.done) continue;
+    // A task linked to a shown event appears once, as that event.
+    if (t.calendar_event_id && eventIds.has(t.calendar_event_id)) continue;
     // Date-only tasks sort to the start of their day.
     items.push({ key: `t-${t.id}`, kind: "task", day: t.due_date, sortAt: startOfLocalDay(t.due_date).getTime() - 1, time: "Due", title: t.title, meta: PRI[t.priority] ?? t.priority, href: "/tasks" });
   }

@@ -27,3 +27,17 @@ describe("buildTimeline linked events", () => {
     expect(buildTimeline({ events: [ev], tasks: [], reminders: [], eventTasks: [{ calendar_event_id: "other", done: true }] })[0]?.taskState).toBeUndefined();
   });
 });
+
+describe("buildTimeline linked task dedupe", () => {
+  const ev = { id: "e1", title: "Call", starts_at: "2026-11-02T15:00:00Z", ends_at: null, meet_url: null, location: null } as CalendarEvent;
+  const run = (t: Task, events: CalendarEvent[]) => buildTimeline({ events, tasks: [t], reminders: [], eventTasks: [{ calendar_event_id: "e1", done: false }] }).map((i) => i.key);
+  it("shows a linked task once, as its event", () => {
+    expect(run(task({ id: "a", calendar_event_id: "e1" }), [ev])).toEqual(["e-e1"]);
+  });
+  it("keeps the Due row when the linked event is outside the shown range, so the task never vanishes", () => {
+    expect(run(task({ id: "a", calendar_event_id: "e1" }), [])).toEqual(["t-a"]);
+  });
+  it("keeps the Due row for an unlinked task", () => {
+    expect(run(task({ id: "a", calendar_event_id: null }), [ev]).sort()).toEqual(["e-e1", "t-a"]);
+  });
+});
