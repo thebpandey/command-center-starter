@@ -4,12 +4,12 @@ import { requireUser } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
 import { listDocuments, searchDocuments } from "@/lib/data/documents";
 import { fmtWhen } from "@/lib/time";
+import { docKindLabel } from "@/lib/schemas";
 import { Card, ErrorBox, Empty, PageHeader, PanelSkeleton } from "@/components/ui";
 import { Icon } from "@/components/icons";
 
 export const metadata = { title: "Documents · Assistant" };
 type SP = Promise<{ q?: string | string[] }>;
-const KIND: Record<string, string> = { note: "Note", research: "Research", briefing: "Briefing", pdf: "PDF", other: "Other" };
 
 export default function DocumentsPage({ searchParams }: { searchParams: SP }) {
   return (
@@ -58,7 +58,7 @@ async function SearchResults({ db, uid, q }: { db: Db; uid: string; q: string })
             <Icon name="file" />
             <div className="row-stack"><span className="row-title">{d.title}</span><span className="row-sub">{d.snippet}</span></div>
           </Link>
-          <span className="chip">{KIND[d.kind]}</span>
+          <span className="chip">{docKindLabel(d.kind)}</span>
         </li>
       ))}
     </ul>
@@ -76,7 +76,7 @@ async function AllDocs({ db, uid }: { db: Db; uid: string }) {
           <Link href={`/documents/${d.id}`} className="row-link">
             <Icon name={d.attachment_path ? "paperclip" : "file"} /><span className="row-title">{d.title}</span>
           </Link>
-          <span className="chip">{KIND[d.kind]}</span><span className="row-when">{fmtWhen(d.updated_at)}</span>
+          <span className="chip">{docKindLabel(d.kind)}</span><span className="row-when">{fmtWhen(d.updated_at)}</span>
         </li>
       ))}
     </ul>

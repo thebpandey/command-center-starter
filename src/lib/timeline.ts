@@ -10,6 +10,7 @@ export type TimelineItem = {
   title: string;
   meta: string;
   href?: string;
+  taskState?: "open" | "done";
 };
 
 const PRI: Record<string, string> = { low: "Low", med: "Med", high: "High" };
@@ -24,12 +25,13 @@ function hostOf(url: string | null): string | null {
   }
 }
 
-export function buildTimeline(input: { events: CalendarEvent[]; tasks: Task[]; reminders: Reminder[] }): TimelineItem[] {
+export function buildTimeline(input: { events: CalendarEvent[]; tasks: Task[]; reminders: Reminder[]; eventTasks?: Pick<Task, "calendar_event_id" | "done">[] }): TimelineItem[] {
   const items: TimelineItem[] = [];
   for (const e of input.events) {
+    const linked = input.eventTasks?.find((t) => t.calendar_event_id === e.id);
     const span = e.ends_at ? `${fmtTime24(e.starts_at)}–${fmtTime24(e.ends_at)}` : fmtTime24(e.starts_at);
     const meta = [span, hostOf(e.meet_url) ?? e.location ?? "Calendar"].join(" · ");
-    items.push({ key: `e-${e.id}`, kind: "event", day: localDate(new Date(e.starts_at)), sortAt: Date.parse(e.starts_at), time: fmtTime24(e.starts_at), title: e.title || "(no title)", meta });
+    items.push({ key: `e-${e.id}`, kind: "event", day: localDate(new Date(e.starts_at)), sortAt: Date.parse(e.starts_at), time: fmtTime24(e.starts_at), title: e.title || "(no title)", meta, taskState: linked ? (linked.done ? "done" : "open") : undefined, href: linked ? "/tasks" : undefined });
   }
   for (const t of input.tasks) {
     if (!t.due_date || t.done) continue;

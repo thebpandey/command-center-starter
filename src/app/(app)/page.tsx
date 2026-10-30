@@ -11,6 +11,7 @@ import { listActivity } from "@/lib/data/activity";
 import { getTriageRules } from "@/lib/data/triage";
 import { buildTimeline } from "@/lib/timeline";
 import { type Range, rangeBounds, localDate, startOfLocalDay, addDays, fmtDueDate, fmtWhen, fmtTime, fmtHeaderDate, greeting } from "@/lib/time";
+import { docKindLabel } from "@/lib/schemas";
 import { Card, ErrorBox, Empty, PageHeader, RangeSwitch, SyncPill, Timeline, PanelSkeleton } from "@/components/ui";
 import { Icon, type IconName } from "@/components/icons";
 import { AckButton } from "@/components/ack-button";
@@ -20,7 +21,6 @@ import type { Task } from "@/lib/supabase/types";
 type SP = Promise<{ range?: string | string[] }>;
 const parseRange = (v: string | string[] | undefined): Range => (v === "week" || v === "month" ? v : "today");
 const PRI: Record<string, string> = { low: "Low", med: "Med", high: "High" };
-const KIND: Record<string, string> = { note: "Note", research: "Research", briefing: "Briefing", pdf: "PDF", other: "Other" };
 const ACTOR: Record<string, string> = { assistant: "Assistant", "scheduled-task": "Scheduled", user: "You" };
 
 export default function TodayPage({ searchParams }: { searchParams: SP }) {
@@ -165,7 +165,7 @@ async function Today({ searchParams }: { searchParams: SP }) {
                 <Link href={`/documents/${d.id}`} className="row-link">
                   <Icon name="file" /><span className="row-title">{d.title}</span>
                 </Link>
-                <span className="chip">{KIND[d.kind]}</span><span className="row-when">{fmtWhen(d.updated_at)}</span>
+                <span className="chip">{docKindLabel(d.kind)}</span><span className="row-when">{fmtWhen(d.updated_at)}</span>
               </li>
             ))}
           </ul>

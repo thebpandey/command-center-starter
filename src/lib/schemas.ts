@@ -6,6 +6,12 @@ const shortText = (max: number) => z.string().trim().max(max);
 
 export const priority = z.enum(["low", "med", "high"]);
 export const docKind = z.enum(["note", "research", "briefing", "pdf", "other", "contract", "transcript", "report", "data"]);
+export const DOC_KIND_LABEL: Record<z.infer<typeof docKind>, string> = {
+  note: "Note", research: "Research", briefing: "Briefing", pdf: "PDF", other: "Other",
+  contract: "Contract", transcript: "Transcript", report: "Report", data: "Data",
+};
+/** DB column is plain text, so fall back to the raw value for unknown kinds. */
+export const docKindLabel = (kind: string): string => (DOC_KIND_LABEL as Record<string, string>)[kind] ?? kind;
 export const tokenScope = z.enum(["full", "read"]);
 export const messageStatus = z.enum(["draft", "sent", "failed"]);
 export const agentActor = z.enum(["assistant", "scheduled-task"]);
@@ -17,6 +23,7 @@ export const taskCreate = z.object({
   due_date: isoDate.nullish(),
   priority: priority.default("med"),
   source: shortText(100).nullish(),
+  calendar_event_id: z.uuid().nullish(),
 });
 export const taskPatch = z.object({
   title: shortText(500).min(1).optional(),
@@ -24,6 +31,7 @@ export const taskPatch = z.object({
   due_date: isoDate.nullable().optional(),
   priority: priority.optional(),
   done: z.boolean().optional(),
+  calendar_event_id: z.uuid().nullable().optional(),
 });
 
 export const reminderCreate = z.object({

@@ -8,6 +8,8 @@ Only you can log in. Your AI tools connect with a secret token that you create a
 
 **Pages:** Today, Tasks, Calendar, Documents (your Library), Messages, Activity, Triage rules, and Settings.
 
+Tasks with due dates also show on the Calendar, and a task can be linked to a calendar event.
+
 **Built with:** Next.js (the website), Supabase (the database and login), and MCP (the "plug" that lets AI tools read and write your data).
 
 ## What you need

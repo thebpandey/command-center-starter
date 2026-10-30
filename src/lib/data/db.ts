@@ -3,7 +3,7 @@ import type { Database } from "../supabase/database.types";
 import { type Result, ok, err } from "../result";
 
 export type Db = SupabaseClient<Database>;
-export type DbError = "DB_ERROR" | "NOT_FOUND";
+export type DbError = "DB_ERROR" | "NOT_FOUND" | "EVENT_NOT_FOUND";
 export type DbResult<T> = Result<T, DbError>;
 
 type PgResp = { data: unknown; error: { message: string } | null };

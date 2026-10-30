@@ -167,3 +167,68 @@ describe("Library document kinds", () => {
     expect(got.data).toEqual({ body_md: text, kind: "contract" });
   });
 });
+
+describe("task <-> calendar event link", () => {
+  const call = async (name: string, args: Record<string, unknown>, token: string, id: number) => {
+    const r = await body(await POST(rpc("tools/call", { name, arguments: args }, token, id)));
+    const isError = r.result?.isError === true || r.error !== undefined;
+    const text: string = r.result?.content?.[0]?.text ?? "null";
+    // Error results are plain text (e.g. "Input validation error ..."), not JSON.
+    return { isError, data: (isError ? text : JSON.parse(text)) as unknown };
+  };
+  const eventIds: string[] = [];
+  let eventId = "";
+  let taskId = "";
+  const startsAt = "2031-01-15T15:00:00.000Z";
+
+  beforeAll(async () => {
+    const ev = await ctx.admin.from("calendar_events").insert({ user_id: ctx.uid, external_id: `vitest-${Date.now()}`, title: "vitest link event", starts_at: startsAt }).select("id").single();
+    if (ev.error || !ev.data) throw new Error("event seed failed");
+    eventId = ev.data.id;
+    eventIds.push(eventId);
+    const t = await call("task_create", { title: `vitest linked ${Date.now()}`, source: TEST_SOURCE }, valid, 20);
+    taskId = (t.data as { id: string }).id;
+    createdTaskIds.push(taskId);
+  });
+  afterAll(async () => {
+    await ctx.admin.from("tasks").delete().eq("id", taskId);
+    await ctx.admin.from("calendar_events").delete().in("id", eventIds);
+  });
+
+  it("task_update links a task and tasks_list returns the link", async () => {
+    const u = await call("task_update", { id: taskId, calendar_event_id: eventId }, valid, 21);
+    expect(u.isError).toBe(false);
+    const l = await call("tasks_list", { filter: "open" }, valid, 22);
+    expect((l.data as { id: string; calendar_event_id: string | null }[]).find((t) => t.id === taskId)?.calendar_event_id).toBe(eventId);
+  });
+
+  it("rejects linking an event that is not the owner's (unknown id; no second owner exists in the harness)", async () => {
+    const u = await call("task_update", { id: taskId, calendar_event_id: crypto.randomUUID() }, valid, 23);
+    expect(u.isError).toBe(true);
+    expect(JSON.stringify(u.data)).toContain("EVENT_NOT_FOUND");
+  });
+
+  it("rejects a non-uuid calendar_event_id", async () => {
+    expect((await call("task_update", { id: taskId, calendar_event_id: "nope" }, valid, 24)).isError).toBe(true);
+  });
+
+  it("a read-only token cannot set calendar_event_id", async () => {
+    const u = await call("task_update", { id: taskId, calendar_event_id: null }, readOnly, 25);
+    expect(u.isError).toBe(true);
+    const row = await ctx.admin.from("tasks").select("calendar_event_id").eq("id", taskId).single();
+    expect(row.data?.calendar_event_id).toBe(eventId);
+  });
+
+  it("calendar_events_list shows the linked task state and task_complete flips it, with a Google hint", async () => {
+    const range = { from: "2031-01-15T00:00:00Z", to: "2031-01-16T00:00:00Z" };
+    const before = await call("calendar_events_list", range, readOnly, 26);
+    expect((before.data as { id: string; task: { status: string } | null }[]).find((e) => e.id === eventId)?.task?.status).toBe("open");
+    const done = await call("task_complete", { id: taskId }, valid, 27);
+    expect(JSON.stringify(done.data)).toContain("Google Calendar");
+    const after = await call("calendar_events_list", range, readOnly, 28);
+    const t = (after.data as { id: string; task: { status: string; done: boolean } | null }[]).find((e) => e.id === eventId)?.task;
+    expect(t).toMatchObject({ status: "done", done: true });
+    const act = await ctx.admin.from("activity").select("detail").eq("ref_id", taskId).eq("action", "Completed task").single();
+    expect(act.data?.detail).toContain("vitest link event");
+  });
+});

@@ -70,14 +70,14 @@ export function SyncPill({ syncedAt, now }: { syncedAt: string | null; now: Date
 
 export function Timeline({ items, grouped }: { items: TimelineItem[]; grouped: boolean }) {
   const row = (x: TimelineItem) => (
-    <li key={x.key} className={`tl-item k-${x.kind}`}>
+    <li key={x.key} className={`tl-item k-${x.kind}${x.taskState === "done" ? " task-done" : ""}`}>
       <span className="tl-time">{x.time}</span>
       <span className="tl-mark" aria-hidden="true" />
       <div className="tl-body">
-        <span className="tl-title">{x.title}</span>
+        {x.href ? <Link href={x.href} className="tl-title">{x.title}</Link> : <span className="tl-title">{x.title}</span>}
         <span className="tl-meta">
-          <span className="sr-only">{x.kind === "event" ? "Event" : x.kind === "task" ? "Task" : "Reminder"}: </span>
-          {x.meta}
+          {x.kind === "task" ? <span className="chip">Task</span> : x.taskState ? <span className="chip">{x.taskState === "done" ? "Task done" : "Task open"}</span> : <span className="sr-only">{x.kind === "event" ? "Event" : "Reminder"}: </span>}
+          {(x.kind === "task" || x.taskState) && " "}{x.meta}
         </span>
       </div>
     </li>

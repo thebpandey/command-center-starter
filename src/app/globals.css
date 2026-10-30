@@ -107,6 +107,8 @@ input,textarea,select{font:inherit;color:inherit}
 .tl-day{font-size:12px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.06em;padding:12px 0 2px 76px}
 .tl-day:first-child{padding-top:0}
 .tl-body a{color:var(--accent);font-size:12px}
+.tl-item.task-done .tl-title{text-decoration:line-through;opacity:.7}
+.tl-body a.tl-title{color:inherit;font-size:14px}
 
 /* tasks */
 .task-list{list-style:none}

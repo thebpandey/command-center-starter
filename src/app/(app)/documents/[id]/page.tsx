@@ -5,6 +5,7 @@ import { requireUser } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
 import { getDocument } from "@/lib/data/documents";
 import { fmtWhen } from "@/lib/time";
+import { docKindLabel } from "@/lib/schemas";
 import { Card, ErrorBox, PanelSkeleton } from "@/components/ui";
 import { DocumentView } from "@/components/document-view";
 import { Attachment } from "@/components/attachment";
@@ -12,7 +13,6 @@ import { Markdown } from "@/components/markdown";
 
 export const metadata = { title: "Document · Assistant" };
 type P = Promise<{ id: string }>;
-const KIND: Record<string, string> = { note: "Note", research: "Research", briefing: "Briefing", pdf: "PDF", other: "Other" };
 
 export default function DocumentPage({ params }: { params: P }) {
   return (
@@ -32,7 +32,7 @@ async function Doc({ params }: { params: P }) {
   const d = r.value;
   return (
     <div className="two-col">
-      <Card title={d.title} labelledBy="h-doc-title" aside={<span className="chip">{KIND[d.kind]}</span>}>
+      <Card title={d.title} labelledBy="h-doc-title" aside={<span className="chip">{docKindLabel(d.kind)}</span>}>
         <DocumentView doc={{ id: d.id, title: d.title, kind: d.kind, body_md: d.body_md, tags: d.tags }} rendered={<Markdown source={d.body_md} />} />
       </Card>
       <div className="stack">

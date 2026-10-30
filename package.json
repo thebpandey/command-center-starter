@@ -8,7 +8,7 @@
     "start": "next start",
     "lint": "eslint",
     "test": "vitest run",
-    "test:unit": "vitest run tests/login.test.ts",
+    "test:unit": "vitest run tests/login.test.ts src/lib/timeline.test.ts",
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {

@@ -248,6 +248,7 @@ export type Database = {
       }
       tasks: {
         Row: {
+          calendar_event_id: string | null
           created_at: string
           done: boolean
           done_at: string | null
@@ -261,6 +262,7 @@ export type Database = {
           user_id: string
         }
         Insert: {
+          calendar_event_id?: string | null
           created_at?: string
           done?: boolean
           done_at?: string | null
@@ -274,6 +276,7 @@ export type Database = {
           user_id: string
         }
         Update: {
+          calendar_event_id?: string | null
           created_at?: string
           done?: boolean
           done_at?: string | null
@@ -286,7 +289,15 @@ export type Database = {
           updated_at?: string
           user_id?: string
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "tasks_calendar_event_id_fkey"
+            columns: ["calendar_event_id"]
+            isOneToOne: false
+            referencedRelation: "calendar_events"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       triage_rules: {
         Row: {

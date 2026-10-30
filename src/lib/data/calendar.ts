@@ -1,5 +1,6 @@
 import type { z } from "zod";
 import type { calendarEvent } from "../schemas";
+import { ok } from "../result";
 import { type Db, fromPg, fromPgMaybe } from "./db";
 
 export async function upsertCalendarEvents(db: Db, uid: string, events: z.infer<typeof calendarEvent>[]) {
@@ -34,4 +35,14 @@ export async function lastCalendarSync(db: Db, uid: string) {
   const res = fromPgMaybe(r);
   if (!res.ok) return res;
   return { ok: true as const, value: res.value?.synced_at ?? null };
+}
+
+export async function listCalendarEventsByIds(db: Db, uid: string, ids: string[]) {
+  if (ids.length === 0) return ok([]);
+  return fromPg(await db.from("calendar_events").select("*").eq("user_id", uid).in("id", ids));
+}
+
+export async function listTasksForEvents(db: Db, uid: string, eventIds: string[]) {
+  if (eventIds.length === 0) return ok([]);
+  return fromPg(await db.from("tasks").select("id,title,done,calendar_event_id").eq("user_id", uid).in("calendar_event_id", eventIds));
 }

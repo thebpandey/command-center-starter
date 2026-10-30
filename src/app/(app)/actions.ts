@@ -6,6 +6,7 @@ import { requireUser } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
 import * as s from "@/lib/schemas";
 import { createTask, updateTask, deleteTask } from "@/lib/data/tasks";
+import { listCalendarEventsByIds } from "@/lib/data/calendar";
 import { acknowledgeReminder } from "@/lib/data/reminders";
 import { createDocument, updateDocument, deleteDocument, setDocumentAttachment, getDocument } from "@/lib/data/documents";
 import { setTriageRules } from "@/lib/data/triage";
@@ -51,7 +52,11 @@ export async function toggleTaskAction(id: string, done: boolean): Promise<FormS
   const { db, uid } = await ctx();
   const r = await updateTask(db, uid, p.data.id, { done: p.data.done });
   if (!r.ok) return fail("Could not update task");
-  if (p.data.done) await logActivity(db, uid, { actor: "user", action: "Completed task", detail: r.value.title, ref_table: "tasks", ref_id: r.value.id });
+  if (p.data.done) {
+    const ev = r.value.calendar_event_id ? await listCalendarEventsByIds(db, uid, [r.value.calendar_event_id]) : null;
+    const evTitle = ev?.ok ? ev.value[0]?.title : undefined;
+    await logActivity(db, uid, { actor: "user", action: "Completed task", detail: evTitle ? `${r.value.title} (calendar: ${evTitle})` : r.value.title, ref_table: "tasks", ref_id: r.value.id });
+  }
   refresh();
   return okState();
 }

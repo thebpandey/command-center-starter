@@ -11,7 +11,7 @@ import { listReminders, createReminder, acknowledgeReminder } from "../data/remi
 import { searchDocuments, getDocument, createDocument, updateDocument } from "../data/documents";
 import { listMessages, upsertMessage } from "../data/messages";
 import { listActivity, logActivity } from "../data/activity";
-import { upsertCalendarEvents, listCalendarEvents } from "../data/calendar";
+import { upsertCalendarEvents, listCalendarEvents, listCalendarEventsByIds, listTasksForEvents } from "../data/calendar";
 import { getTriageRules, setTriageRules } from "../data/triage";
 
 type ToolResult = { content: { type: "text"; text: string }[]; isError?: boolean };
@@ -56,9 +56,12 @@ async function withActivity<T extends { id: string }>(
   return text(shape(r.value));
 }
 
-const taskShape = (t: { id: string; title: string; due_date: string | null; priority: string; done: boolean }) => ({
-  id: t.id, title: t.title, due_date: t.due_date, priority: t.priority, done: t.done,
+type TaskLike = { id: string; title: string; due_date: string | null; priority: string; done: boolean; calendar_event_id: string | null };
+const taskShape = (t: TaskLike) => ({
+  id: t.id, title: t.title, due_date: t.due_date, priority: t.priority, done: t.done, calendar_event_id: t.calendar_event_id,
 });
+
+const COMPLETE_HINT = "This task has a calendar_event_id: also update or delete the Google Calendar event (ask the user first).";
 
 export const TOOL_NAMES = [
   "tasks_list", "task_create", "task_update", "task_complete",
@@ -97,18 +100,23 @@ export function registerTools(server: McpServer, scope: TokenScope = "full"): vo
     z.object({ filter: schemas.taskFilter.default("open"), limit: z.number().int().min(1).max(200).default(50) }),
     async (a, c) => unwrap(await listTasks(c.db, c.uid, a.filter, a.limit), (rows) => rows.map(taskShape)));
 
-  tool("task_create", "Create a task.", schemas.taskCreate.extend(actorArg),
+  tool("task_create", "Create a task. Optional calendar_event_id links it to a calendar_events row (id from calendar_events_upsert/calendar_events_list). After creating a Google Calendar event for a task, call calendar_events_upsert, then task_update with calendar_event_id.", schemas.taskCreate.extend(actorArg),
     async ({ actor, ...input }, c) =>
       withActivity(c, await createTask(c.db, c.uid, { ...input, source: input.source ?? actor }), actor, "Created task", input.title, "tasks", taskShape));
 
-  tool("task_update", "Update a task's fields.", schemas.taskPatch.extend({ id: idArg, ...actorArg }),
+  tool("task_update", "Update a task's fields. Set calendar_event_id (or null to unlink) to link the task to a calendar event; after creating a Google Calendar event for a task, call calendar_events_upsert, then task_update with calendar_event_id.", schemas.taskPatch.extend({ id: idArg, ...actorArg }),
     async ({ id, actor, ...patch }, c) =>
       withActivity(c, await updateTask(c.db, c.uid, id, patch), actor, "Updated task", patch.title ?? null, "tasks", taskShape));
 
-  tool("task_complete", "Mark a task done.", z.object({ id: idArg, ...actorArg }),
+  tool("task_complete", "Mark a task done. If the result has a calendar_event_id, also update or delete the Google Calendar event (ask the user first); the dashboard cannot change Google Calendar.", z.object({ id: idArg, ...actorArg }),
     async ({ id, actor }, c) => {
       const r = await updateTask(c.db, c.uid, id, { done: true });
-      return withActivity(c, r, actor, "Completed task", r.ok ? r.value.title : null, "tasks", taskShape);
+      let detail: string | null = r.ok ? r.value.title : null;
+      if (r.ok && r.value.calendar_event_id) {
+        const ev = await listCalendarEventsByIds(c.db, c.uid, [r.value.calendar_event_id]);
+        if (ev.ok && ev.value[0]) detail = `${r.value.title} (calendar: ${ev.value[0].title})`;
+      }
+      return withActivity(c, r, actor, "Completed task", detail, "tasks", (t) => (t.calendar_event_id ? { ...taskShape(t), hint: COMPLETE_HINT } : taskShape(t)));
     });
 
   const reminderShape = (r: { id: string; message: string; due_at: string | null; critical: boolean; acknowledged_at: string | null; source: string | null }) => ({
@@ -184,11 +192,21 @@ export function registerTools(server: McpServer, scope: TokenScope = "full"): vo
       return text({ upserted: r.value.length });
     });
 
-  tool("calendar_events_list", "List calendar events starting in [from, to). ISO datetimes with offset.",
+  tool("calendar_events_list", "List calendar events starting in [from, to). ISO datetimes with offset. Each event includes its linked task (id, title, done, status) or null.",
     z.object({ from: z.iso.datetime({ offset: true }), to: z.iso.datetime({ offset: true }) }),
-    async (a, c) => unwrap(await listCalendarEvents(c.db, c.uid, a.from, a.to), (rows) => rows.map((e) => ({
-      id: e.id, external_id: e.external_id, title: e.title, starts_at: e.starts_at, ends_at: e.ends_at, location: e.location, meet_url: e.meet_url,
-    }))));
+    async (a, c) => {
+      const r = await listCalendarEvents(c.db, c.uid, a.from, a.to);
+      if (!r.ok) return unwrap(r, () => null);
+      const linked = await listTasksForEvents(c.db, c.uid, r.value.map((e) => e.id));
+      if (!linked.ok) return unwrap(linked, () => null);
+      return text(r.value.map((e) => {
+        const t = linked.value.find((x) => x.calendar_event_id === e.id);
+        return {
+          id: e.id, external_id: e.external_id, title: e.title, starts_at: e.starts_at, ends_at: e.ends_at, location: e.location, meet_url: e.meet_url,
+          task: t ? { id: t.id, title: t.title, done: t.done, status: t.done ? "done" : "open" } : null,
+        };
+      }));
+    });
 
   tool("triage_rules_get", "Get email triage rules: vip [{name,email,note}], keywords, muted, critical_triggers.", z.object({}),
     async (_a, c) => unwrap(await getTriageRules(c.db, c.uid), (r) => r));
