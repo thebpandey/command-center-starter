@@ -4,6 +4,12 @@ A private dashboard that your AI assistant writes to. Your assistant adds tasks,
 
 Only you can log in. Your AI tools connect with a secret token that you create and can cancel at any time.
 
+**Prefer an AI coding agent?** Open Claude Code or Codex and say: Set up this dashboard for me by following [AGENT-SETUP.md](AGENT-SETUP.md). The full prompt:
+
+```
+Set up my Personal Command Center dashboard from https://github.com/thebpandey/command-center-starter. Clone it into a new folder, then follow AGENT-SETUP.md in the repo step by step. Ask before each step that changes my accounts, stop whenever I need to log in or paste a key, and never show my keys or tokens in the chat.
+```
+
 > Screenshot: _add a screenshot of the Today page here_
 
 **Pages:** Today, Tasks, Calendar, Documents (your Library), Messages, Activity, Triage rules, and Settings.
