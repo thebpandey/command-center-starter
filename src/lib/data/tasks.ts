@@ -48,6 +48,10 @@ export async function updateTask(db: Db, uid: string, id: string, patch: z.infer
   return fromPg(await db.from("tasks").update(row).eq("user_id", uid).eq("id", id).select("*").maybeSingle());
 }
 
+export async function getTask(db: Db, uid: string, id: string) {
+  return fromPg(await db.from("tasks").select("*").eq("user_id", uid).eq("id", id).maybeSingle());
+}
+
 export async function deleteTask(db: Db, uid: string, id: string) {
   return fromPg(await db.from("tasks").delete().eq("user_id", uid).eq("id", id).select("id").maybeSingle());
 }

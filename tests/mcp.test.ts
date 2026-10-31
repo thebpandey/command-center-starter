@@ -232,3 +232,54 @@ describe("task <-> calendar event link", () => {
     expect(act.data?.detail).toContain("vitest link event");
   });
 });
+
+// A hard delete can't be undone, so the guard (exact title) and scope (Full only) are the whole safety story.
+describe("task_delete", () => {
+  const call = async (name: string, args: Record<string, unknown>, token: string, id: number) => {
+    const r = await body(await POST(rpc("tools/call", { name, arguments: args }, token, id)));
+    const isError = r.result?.isError === true || r.error !== undefined;
+    const text: string = r.result?.content?.[0]?.text ?? "null";
+    return { isError, text };
+  };
+  const make = async (title: string, id: number) => {
+    const r = await call("task_create", { title, source: TEST_SOURCE }, valid, id);
+    const t = JSON.parse(r.text) as { id: string };
+    createdTaskIds.push(t.id);
+    return t.id;
+  };
+  const exists = async (id: string) => ((await ctx.admin.from("tasks").select("id").eq("id", id)).data ?? []).length === 1;
+
+  it("is not offered to read-only tokens and they cannot call it", async () => {
+    expect(READ_TOOL_NAMES).not.toContain("task_delete");
+    const id = await make(`vitest delete ro ${Date.now()}`, 40);
+    const r = await call("task_delete", { id, confirm_title: "x" }, readOnly, 41);
+    expect(r.isError).toBe(true);
+    expect(await exists(id)).toBe(true);
+  });
+
+  it("refuses when confirm_title does not match, and deletes nothing", async () => {
+    const title = `vitest delete mismatch ${Date.now()}`;
+    const id = await make(title, 42);
+    const r = await call("task_delete", { id, confirm_title: `${title} (wrong)` }, valid, 43);
+    expect(r.isError).toBe(true);
+    expect(r.text).toContain("TITLE_MISMATCH");
+    expect(await exists(id)).toBe(true);
+  });
+
+  it("deletes with the exact title and leaves an audit row naming the task", async () => {
+    const title = `vitest delete ok ${Date.now()}`;
+    const id = await make(title, 44);
+    const r = await call("task_delete", { id, confirm_title: title }, valid, 45);
+    expect(r.isError).toBe(false);
+    expect(JSON.parse(r.text)).toMatchObject({ deleted: true, id, title });
+    expect(await exists(id)).toBe(false);
+    const act = await ctx.admin.from("activity").select("action,detail").eq("ref_id", id).eq("action", "Deleted task").single();
+    expect(act.data).toEqual({ action: "Deleted task", detail: title });
+  });
+
+  it("reports NOT_FOUND for an id that does not exist", async () => {
+    const r = await call("task_delete", { id: "00000000-0000-4000-8000-000000000000", confirm_title: "x" }, valid, 46);
+    expect(r.isError).toBe(true);
+    expect(r.text).toContain("NOT_FOUND");
+  });
+});

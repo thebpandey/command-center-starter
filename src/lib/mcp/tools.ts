@@ -6,7 +6,7 @@ import { createAdminClient } from "../supabase/admin";
 import { getOwnerId } from "./owner";
 import type { TokenScope } from "./auth";
 import * as schemas from "../schemas";
-import { listTasks, createTask, updateTask } from "../data/tasks";
+import { listTasks, createTask, updateTask, getTask, deleteTask } from "../data/tasks";
 import { listReminders, createReminder, acknowledgeReminder } from "../data/reminders";
 import { searchDocuments, getDocument, createDocument, updateDocument } from "../data/documents";
 import { listMessages, upsertMessage } from "../data/messages";
@@ -64,7 +64,7 @@ const taskShape = (t: TaskLike) => ({
 const COMPLETE_HINT = "This task has a calendar_event_id: also update or delete the Google Calendar event (ask the user first).";
 
 export const TOOL_NAMES = [
-  "tasks_list", "task_create", "task_update", "task_complete",
+  "tasks_list", "task_create", "task_update", "task_complete", "task_delete",
   "reminders_list", "reminder_create", "reminder_acknowledge",
   "documents_search", "document_get", "document_create", "document_update",
   "messages_list", "message_log", "activity_list",
@@ -117,6 +117,25 @@ export function registerTools(server: McpServer, scope: TokenScope = "full"): vo
         if (ev.ok && ev.value[0]) detail = `${r.value.title} (calendar: ${ev.value[0].title})`;
       }
       return withActivity(c, r, actor, "Completed task", detail, "tasks", (t) => (t.calendar_event_id ? { ...taskShape(t), hint: COMPLETE_HINT } : taskShape(t)));
+    });
+
+  // Hard delete is irreversible and the dashboard has no trash, so the caller must echo the task's exact title:
+  // a wrong or hallucinated id then fails instead of deleting some other task. Full tokens only (not a read tool).
+  tool("task_delete", "Permanently delete a task. Ask the user first; prefer task_complete unless they asked for deletion. confirm_title must equal the task's current title exactly (get it from tasks_list). If the result has a calendar_event_id, the Google Calendar event still exists: ask the user before deleting it there.",
+    z.object({ id: idArg, confirm_title: z.string().min(1).max(500), ...actorArg }),
+    async ({ id, confirm_title, actor }, c) => {
+      const found = await getTask(c.db, c.uid, id);
+      if (!found.ok) return unwrap(found, () => null);
+      if (found.value === null) return fail("NOT_FOUND", "No task with that id");
+      if (found.value.title !== confirm_title) return fail("TITLE_MISMATCH", "confirm_title does not match the task's title; nothing was deleted");
+      const removed = await deleteTask(c.db, c.uid, id);
+      if (!removed.ok) return unwrap(removed, () => null);
+      if (removed.value === null) return fail("NOT_FOUND", "No task with that id");
+      const t = found.value;
+      const log = await logActivity(c.db, c.uid, { actor, action: "Deleted task", detail: t.title, ref_table: "tasks", ref_id: t.id });
+      if (!log.ok) return fail("ACTIVITY_LOG_FAILED", "Delete succeeded but activity log failed");
+      return text({ deleted: true, id: t.id, title: t.title, calendar_event_id: t.calendar_event_id,
+        ...(t.calendar_event_id ? { hint: "The linked Google Calendar event was not touched: ask the user before deleting it." } : {}) });
     });
 
   const reminderShape = (r: { id: string; message: string; due_at: string | null; critical: boolean; acknowledged_at: string | null; source: string | null }) => ({
